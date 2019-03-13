@@ -186,10 +186,10 @@ static void invalidate_buckets_lru(struct cache *ca)
 
 	for_each_bucket(b, ca) {  //遍历cache disk的每个bucket
 		if (!bch_can_invalidate_bucket(ca, b)) //判断bucket是否能够回收
-			continue;
-
-		if (!heap_full(&ca->heap)) //将可回收的bucket加入到heap中
-			heap_add(&ca->heap, b, bucket_max_cmp);
+			continue;  //不能回收跳过
+        //将可回收的bucket加入到heap中
+		if (!heap_full(&ca->heap))  //heap未满
+			heap_add(&ca->heap, b, bucket_max_cmp); 
 		else if (bucket_max_cmp(b, heap_peek(&ca->heap))) {
 			ca->heap.data[0] = b;
 			heap_sift(&ca->heap, 0, bucket_max_cmp);
@@ -447,7 +447,7 @@ out:
 
 	if (reserve <= RESERVE_PRIO) {  //若该bucket分配给元数据使用
 		SET_GC_MARK(b, GC_MARK_METADATA); //元数据的bucket不能随意回收
-		SET_GC_MOVE(b, 0);     //该bucket目前不需要gc 处理
+		SET_GC_MOVE(b, 0);     //该bucket目前不需要gc处理
 		b->prio = BTREE_PRIO;
 	} else {
 		SET_GC_MARK(b, GC_MARK_RECLAIMABLE);

@@ -395,7 +395,7 @@ static void do_btree_node_write(struct btree *b)
 	i->csum		= btree_csum_set(b, i);
 
 	BUG_ON(b->bio);
-	b->bio = bch_bbio_alloc(b->c);
+	b->bio = bch_bbio_alloc(b->c); //分配一个对cache设备的bio
 
 	b->bio->bi_end_io	= btree_node_write_endio;
 	b->bio->bi_private	= cl;
@@ -528,9 +528,9 @@ static void bch_btree_leaf_dirty(struct btree *b, atomic_t *journal_ref)
 	BUG_ON(!i->keys);
 
 	if (!btree_node_dirty(b))
-		schedule_delayed_work(&b->work, 30 * HZ);
+		schedule_delayed_work(&b->work, 30 * HZ); //如果该叶子节点非dirty，则延迟调用b->work
 
-	set_btree_node_dirty(b);
+	set_btree_node_dirty(b); //标记叶子节点为dirty
 
 	if (journal_ref) {
 		if (w->journal &&
@@ -545,7 +545,7 @@ static void bch_btree_leaf_dirty(struct btree *b, atomic_t *journal_ref)
 		}
 	}
 
-	/* Force write if set is too big */
+	/* Force write if set is too big */ //bset的大小已接近PAGE_SIZE
 	if (set_bytes(i) > PAGE_SIZE - 48 &&
 	    !current->bio_list)
 		bch_btree_node_write(b, NULL);
@@ -1851,7 +1851,7 @@ static bool gc_should_run(struct cache_set *c)
 	bool ret = false;
 
 	for_each_cache(ca, c, i)
-		if (ca->invalidate_needs_gc)
+		if (ca->invalidate_needs_gc) 
 			return true;
 
 	if (atomic_read(&c->sectors_to_gc) < 0) {

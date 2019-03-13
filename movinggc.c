@@ -203,7 +203,7 @@ void bch_moving_gc(struct cache_set *c)
 
 	mutex_lock(&c->bucket_lock);
 
-	for_each_cache(ca, c, i) { //遍历cache disk的bucket
+	for_each_cache(ca, c, i) { //遍历所有cache设备的bucket
 		unsigned sectors_to_move = 0;
 		unsigned reserve_sectors = ca->sb.bucket_size *
 			fifo_used(&ca->free[RESERVE_MOVINGGC]);
@@ -233,7 +233,7 @@ void bch_moving_gc(struct cache_set *c)
 			heap_pop(&ca->heap, b, bucket_cmp);
 			sectors_to_move -= GC_SECTORS_USED(b);
 		}
-
+        //通过上面统计，设置哪些bucket可以通过移动来合并，进一步释放bucket
 		while (heap_pop(&ca->heap, b, bucket_cmp))
 			SET_GC_MOVE(b, 1);
 	}

@@ -253,7 +253,7 @@ uint64_t bch_next_delay(struct bch_ratelimit *d, uint64_t done)
 		? div_u64(d->next - now, NSEC_PER_SEC / HZ)
 		: 0;
 }
-
+//对bio中的bio_vec分配物理地址
 void bch_bio_map(struct bio *bio, void *base)
 {
 	size_t size = bio->bi_iter.bi_size;

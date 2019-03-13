@@ -40,7 +40,7 @@ void __bch_submit_bbio(struct bio *bio, struct cache_set *c)
 	b->submit_time_us = local_clock_us();
 	closure_bio_submit(c, bio, bio->bi_private);
 }
-
+//提交对cache设备的io
 void bch_submit_bbio(struct bio *bio, struct cache_set *c,
 		     struct bkey *k, unsigned ptr)
 {

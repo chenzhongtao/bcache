@@ -1790,7 +1790,7 @@ static void run_cache_set(struct cache_set *c)
 		struct jset *j;
 
 		err = "cannot allocate memory for journal";
-		if (bch_journal_read(c, &journal))
+		if (bch_journal_read(c, &journal)) //从cache设备中读出持久化的journal
 			goto err;
 
 		pr_debug("btree_journal_read() done");
@@ -1833,7 +1833,7 @@ static void run_cache_set(struct cache_set *c)
 		if (bch_btree_check(c))
 			goto err;
 
-		bch_journal_mark(c, &journal);
+		bch_journal_mark(c, &journal); //确定哪些journal需要重新提交
 		bch_initial_gc_finish(c);
 		pr_debug("btree_check() done");
 
@@ -1842,10 +1842,10 @@ static void run_cache_set(struct cache_set *c)
 		 * btree_gc_finish() will give spurious errors about last_gc >
 		 * gc_gen - this is a hack but oh well.
 		 */
-		bch_journal_next(&c->journal);
+		bch_journal_next(&c->journal); //journal采用了双缓冲区，该函数交换两个缓冲区
 
 		err = "error starting allocator thread";
-		for_each_cache(ca, c, i)
+		for_each_cache(ca, c, i)  //每个缓存设备启动一个bch_allocator_thread线程，用于bucket的分配
 			if (bch_cache_allocator_start(ca))
 				goto err;
 
@@ -1862,7 +1862,7 @@ static void run_cache_set(struct cache_set *c)
 		if (j->version < BCACHE_JSET_VERSION_UUID)
 			__uuid_write(c);
 
-		bch_journal_replay(c, &journal);
+		bch_journal_replay(c, &journal); //replay因崩溃或突然关机的持久化记录的bset
 	} else {
 		pr_notice("invalidating existing data");
 
@@ -2190,9 +2190,13 @@ static ssize_t register_bcache(struct kobject *k, struct kobj_attribute *attr,
 	if (!try_module_get(THIS_MODULE))
 		return -EBUSY;
     //参数buffer传进来是块设备文件路径：/dev/sdc
-	if (!(path = kstrndup(buffer, size, GFP_KERNEL)) ||
-	    !(sb = kmalloc(sizeof(struct cache_sb), GFP_KERNEL)))
-		goto err;
+    path = kstrndup(buffer, size, GFP_KERNEL);
+ 	if (!path)
+ 		goto err;
+ 
+ 	sb = kmalloc(sizeof(struct cache_sb), GFP_KERNEL);
+ 	if (!sb)
+ 		goto err;
 
 	err = "failed to open device";
 	bdev = blkdev_get_by_path(strim(path),    //根据路径名字找到block_device

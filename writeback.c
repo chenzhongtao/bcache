@@ -613,7 +613,7 @@ next:
 
 /*
  * Returns true if we scanned the entire disk
- */ //寻找b+树种的脏节点，填充到cached_dev中的writeback_keys中
+ */ //寻找b+树中的脏节点，填充到cached_dev中的writeback_keys中
 static bool refill_dirty(struct cached_dev *dc)
 {
 	struct keybuf *buf = &dc->writeback_keys;
@@ -631,7 +631,7 @@ static bool refill_dirty(struct cached_dev *dc)
 		buf->last_scanned = start;
 
 	if (dc->partial_stripes_expensive) {
-		refill_full_stripes(dc);
+		refill_full_stripes(dc); //用stripe来管理dirty区域，一个 stripe的默认扇区数为dc->disk.stripe_size = q->limits.io_opt>> 9
 		if (array_freelist_empty(&buf->freelist))
 			return false;
 	}

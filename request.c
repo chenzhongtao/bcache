@@ -219,7 +219,7 @@ static void bch_data_insert_start(struct closure *cl)
 		if (bch_keylist_realloc(&op->insert_keys,
 					3 + (op->csum ? 1 : 0),
 					op->c)) {
-			continue_at(cl, bch_data_insert_keys, op->wq);
+			continue_at(cl, bch_data_insert_keys, op->wq); //将op->insert_keys更新到btree
 			return;
 		}
 
@@ -228,7 +228,7 @@ static void bch_data_insert_start(struct closure *cl)
 		SET_KEY_INODE(k, op->inode);
 		SET_KEY_OFFSET(k, bio->bi_iter.bi_sector);
 
-		if (!bch_alloc_sectors(op->c, k, bio_sectors(bio),  //在cache disk中分配新的存储区域
+		if (!bch_alloc_sectors(op->c, k, bio_sectors(bio),  //在cache设备中分配新的存储区域
 				       op->write_point, op->write_prio,
 				       op->writeback))
 			goto err;
@@ -321,9 +321,9 @@ void bch_data_insert(struct closure *cl)
 	trace_bcache_write(op->c, op->inode, op->bio,
 			   op->writeback, op->bypass);
 
-	bch_keylist_init(&op->insert_keys); //需要插入btree的key列表
+	bch_keylist_init(&op->insert_keys); //需要插入btree的key列表，keylist是一种双端队列
 	bio_get(op->bio);
-	bch_data_insert_start(cl);
+	bch_data_insert_start(cl); //完成数据更新到cache设备
 }
 
 /* Congested? */
@@ -377,28 +377,28 @@ static bool check_should_bypass(struct cached_dev *dc, struct bio *bio)
 	struct task_struct *task = current;
 	struct io *i;
 
-	if (test_bit(BCACHE_DEV_DETACHING, &dc->disk.flags) ||
-	    c->gc_stats.in_use > CUTOFF_CACHE_ADD ||
-	    (bio_op(bio) == REQ_OP_DISCARD))
-		goto skip;
+	if (test_bit(BCACHE_DEV_DETACHING, &dc->disk.flags) || //cache设备正在detaching
+	    c->gc_stats.in_use > CUTOFF_CACHE_ADD ||           //缓存使用率超过CUTOFF_CACHE_ADD(95%)
+	    (bio_op(bio) == REQ_OP_DISCARD))                   //bio标记为discard
+		goto skip;                                         
 
-	if (mode == CACHE_MODE_NONE ||
-	    (mode == CACHE_MODE_WRITEAROUND &&
-	     op_is_write(bio_op(bio))))
-		goto skip;
+	if (mode == CACHE_MODE_NONE ||              //主设备禁用cache
+	    (mode == CACHE_MODE_WRITEAROUND &&      //缓存模式设置为WriteAround，并且为写操作
+	     op_is_write(bio_op(bio))))             
+		goto skip;                              //满足以上任一条件，表示bio需要bypass
 
     /*
 	 * Flag for bypass if the IO is for read-ahead or background,
 	 * unless the read-ahead request is for metadata (eg, for gfs2).
 	 */
-	if (bio->bi_opf & (REQ_RAHEAD|REQ_BACKGROUND) &&
+	if (bio->bi_opf & (REQ_RAHEAD|REQ_BACKGROUND) &&  //预读bio和后台bio需要bypass
 	    !(bio->bi_opf & REQ_META))
 		goto skip;
 
 	if (bio->bi_iter.bi_sector & (c->sb.block_size - 1) ||
 	    bio_sectors(bio) & (c->sb.block_size - 1)) {
 		pr_debug("skipping unaligned io");
-		goto skip;
+		goto skip;                              //传输的sector没有按照block_size对齐，bio需要bypass
 	}
 
 	if (bypass_torture_test(dc)) {
@@ -442,12 +442,12 @@ found:
 	if (dc->sequential_cutoff &&
 	    sectors >= dc->sequential_cutoff >> 9) {
 		trace_bcache_bypass_sequential(bio);
-		goto skip;
+		goto skip;                                //连续IO需要bypass
 	}
 
 	if (congested && sectors >= congested) {
 		trace_bcache_bypass_congested(bio);
-		goto skip;
+		goto skip;                                //cache设备处于拥塞状态，需要bypass
 	}
 
 rescale:
@@ -849,8 +849,8 @@ static void cached_dev_read_done_bh(struct closure *cl)
 
 	if (s->iop.status)
 		continue_at_nobarrier(cl, cached_dev_read_error, bcache_wq);
-	else if (s->iop.bio || verify(dc)) //当s->iop.bio不为0时， 表明有新的数据要添加到管理缓存的b+tree中
-		continue_at_nobarrier(cl, cached_dev_read_done, bcache_wq);
+	else if (s->iop.bio || verify(dc)) //在从cache设备中读取时，缓存没命中或bio设置为bypass，将向后端设备读取的bio，保存到s->iop.bio
+		continue_at_nobarrier(cl, cached_dev_read_done, bcache_wq); //其不为NULL时，表明有新的数据要添加到管理缓存的b+tree中
 	else
 		continue_at_nobarrier(cl, cached_dev_bio_complete, NULL);
 }
@@ -865,15 +865,15 @@ static int cached_dev_cache_miss(struct btree *b, struct search *s,
 
 	s->cache_missed = 1;
 
-	if (s->cache_miss || s->iop.bypass) {
+	if (s->cache_miss || s->iop.bypass) { //当miss函数重入(s->cache_miss)或read bypass时，直接从主设备读取
 		miss = bio_next_split(bio, sectors, GFP_NOIO, s->d->bio_split);
 		ret = miss == bio ? MAP_DONE : MAP_CONTINUE;
 		goto out_submit;
 	}
 
-	if (!(bio->bi_opf & REQ_RAHEAD) &&
-	    !(bio->bi_opf & REQ_META) &&
-	    s->iop.c->gc_stats.in_use < CUTOFF_CACHE_READA)
+	if (!(bio->bi_opf & REQ_RAHEAD) && //未禁止预读
+	    !(bio->bi_opf & REQ_META) &&   //非读取元数据
+	    s->iop.c->gc_stats.in_use < CUTOFF_CACHE_READA) //cache设备使用率低于CUTOFF_CACHE_READA(90%)
 		reada = min_t(sector_t, dc->readahead >> 9,  //计算需要预读的sector数
 			      get_capacity(bio->bi_disk) - bio_end_sector(bio));  
 
@@ -915,7 +915,7 @@ static int cached_dev_cache_miss(struct btree *b, struct search *s,
 		bch_mark_cache_readahead(s->iop.c, s->d);
 
 	s->cache_miss	= miss;
-	s->iop.bio	= cache_bio;
+	s->iop.bio	= cache_bio; //将向后端设备读取的bio记录下，以便上层cached_dev_read_done_bh将读取的数据添加到缓存设备
 	bio_get(cache_bio);
 	/* I/O request sent to backing device */
 	closure_bio_submit(s->iop.c, cache_bio, &s->cl); //向后端设备提交bio
@@ -935,8 +935,8 @@ static void cached_dev_read(struct cached_dev *dc, struct search *s)
 {
 	struct closure *cl = &s->cl;
 
-	closure_call(&s->iop.cl, cache_lookup, NULL, cl);
-	continue_at(cl, cached_dev_read_done_bh, NULL);
+	closure_call(&s->iop.cl, cache_lookup, NULL, cl); //workqueue为NULL，表示同步调用cache_lookup
+	continue_at(cl, cached_dev_read_done_bh, NULL);   //等待cache_lookup执行完成后，同步执行cached_dev_read_done_bh   
 }
 
 /* Process writes */
@@ -960,12 +960,12 @@ static void cached_dev_write(struct cached_dev *dc, struct search *s)
 	bch_keybuf_check_overlapping(&s->iop.c->moving_gc_keys, &start, &end); //检查与gc中的key是否存在overlapping
 
 	down_read_non_owner(&dc->writeback_lock);
-	if (bch_keybuf_check_overlapping(&dc->writeback_keys, &start, &end)) { //检查与缓存中的key是否存在overlapping
+	if (bch_keybuf_check_overlapping(&dc->writeback_keys, &start, &end)) { //待写入的bio与待writeback的key是否有overlap
 		/*
 		 * We overlap with some dirty data undergoing background
 		 * writeback, force this write to writeback
 		 */
-		s->iop.bypass = false;
+		s->iop.bypass = false;    //bio与待writeback的key有overlap，需要取消bypass，否则可能发生覆盖
 		s->iop.writeback = true;
 	}
 
@@ -987,7 +987,7 @@ static void cached_dev_write(struct cached_dev *dc, struct search *s)
 	}
 
 	if (s->iop.bypass) {   //绕过缓存
-		s->iop.bio = s->orig_bio;
+		s->iop.bio = s->orig_bio; //bypass，直接记录源bio，异步完成时处理
 		bio_get(s->iop.bio);
 		dc->io_bypass_count++;
 
@@ -1146,7 +1146,7 @@ static blk_qc_t cached_dev_make_request(struct request_queue *q,
 					      cached_dev_nodata,
 					      bcache_wq);
 		} else {
-			s->iop.bypass = check_should_bypass(dc, bio);
+			s->iop.bypass = check_should_bypass(dc, bio); //检查是否需要绕过缓存，直接写后端设备
 
 			if (rw)
 				cached_dev_write(dc, s);
