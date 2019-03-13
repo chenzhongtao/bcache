@@ -366,7 +366,8 @@ STORE(__cached_dev)
 				return size;
 		}
 
-		pr_err("Can't attach %s: cache set not found", buf);
+		if (v == -ENOENT)
+			pr_err("Can't attach %s: cache set not found", buf);
 		return v;
 	}
 
