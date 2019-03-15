@@ -2192,9 +2192,13 @@ static ssize_t register_bcache(struct kobject *k, struct kobj_attribute *attr,
 	if (!try_module_get(THIS_MODULE))
 		return -EBUSY;
     //参数buffer传进来是块设备文件路径：/dev/sdc
-	if (!(path = kstrndup(buffer, size, GFP_KERNEL)) ||
-	    !(sb = kmalloc(sizeof(struct cache_sb), GFP_KERNEL)))
+	path = kstrndup(buffer, size, GFP_KERNEL);
+	if (!path)
 		goto err;
+
+    sb = kmalloc(sizeof(struct cache_sb), GFP_KERNEL);
+    if (!sb)
+        goto err;
 
 	err = "failed to open device";
 	bdev = blkdev_get_by_path(strim(path),    //根据路径名字找到block_device
