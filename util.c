@@ -235,7 +235,7 @@ uint64_t bch_next_delay(struct bch_ratelimit *d, uint64_t done)
 {
 	uint64_t now = local_clock();
     //done表示本次已回写完成的数据量，d->rate表示当前的限制每秒回写的数据量
-	d->next += div_u64(done * NSEC_PER_SEC, d->rate);  //next表示下一次触发回写的时间点
+	d->next += div_u64(done * NSEC_PER_SEC, atomic_long_read(&d->rate));  //next表示下一次触发回写的时间点
 
 	/* Bound the time.  Don't let us fall further than 2 seconds behind
 	 * (this prevents unnecessary backlog that would make it impossible

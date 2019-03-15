@@ -155,7 +155,8 @@ SHOW(__bch_cached_dev)
     var_printf(writeback_unconditional, "%i");
     var_printf(writeback_supress, "%i");
     var_print(io_bypass_count);
-	sysfs_hprint(writeback_rate,	wb ? dc->writeback_rate.rate << 9 : 0);
+	sysfs_hprint(writeback_rate,
+		     wb ? atomic_long_read(&dc->writeback_rate.rate) << 9 : 0);
 	sysfs_hprint(io_errors, 	atomic_read(&dc->io_errors));
 	sysfs_printf(io_error_limit,	"%i", dc->error_limit);
 	sysfs_printf(io_disable,	"%i", dc->io_disable);
@@ -179,7 +180,9 @@ SHOW(__bch_cached_dev)
 		 * Except for dirty and target, other values should
 		 * be 0 if writeback is not running.
 		 */
-		bch_hprint(rate, wb ? dc->writeback_rate.rate << 9 : 0);
+		bch_hprint(rate,
+			   wb ? atomic_long_read(&dc->writeback_rate.rate) << 9
+			      : 0);
 		bch_hprint(dirty, bcache_dev_sectors_dirty(&dc->disk) << 9);
 		bch_hprint(target, dc->writeback_rate_target << 9);
 		bch_hprint(proportional,
@@ -251,9 +254,13 @@ STORE(__cached_dev)
 	d_strtoul(writeback_cutoff_sync);
 
 	sysfs_strtoul_clamp(writeback_percent, dc->writeback_percent, 0, 40);
-        sysfs_strtoul_clamp(writeback_idle_duration_msecs, dc->writeback_idle_duration_msecs, 1000UL, INT_MAX);
-	sysfs_strtoul_clamp(writeback_rate,
-			    dc->writeback_rate.rate, 1, INT_MAX);
+    sysfs_strtoul_clamp(writeback_idle_duration_msecs, dc->writeback_idle_duration_msecs, 1000UL, INT_MAX);
+	if (attr == &sysfs_writeback_rate) {
+		int v;
+
+		sysfs_strtoul_clamp(writeback_rate, v, 1, INT_MAX);
+		atomic_long_set(&dc->writeback_rate.rate, v);
+	}
 
     sysfs_strtoul_clamp(writeback_rate_update_seconds,
 			    dc->writeback_rate_update_seconds,
