@@ -203,7 +203,7 @@ static void update_writeback_rate(struct work_struct *work)
     }
 
     if (dc->writeback_unconditional) {
-        dc->writeback_rate.rate = INT_MAX;  //无条件writeback，以最大速率向下刷数据
+        atomic_long_set(&dc->writeback_rate.rate, INT_MAX); //无条件writeback，以最大速率向下刷数据
         goto schedule_delay;
     }
 
@@ -220,7 +220,7 @@ static void update_writeback_rate(struct work_struct *work)
     }
 
     if (timeout && c->max_writeback_rate_when_idle) {
-        dc->writeback_rate.rate = INT_MAX;  //空闲，以最大速率向下刷数据
+        atomic_long_set(&dc->writeback_rate.rate, INT_MAX);  //空闲，以最大速率向下刷数据
         wakeup = true;
         goto schedule_delay;
     }
@@ -233,7 +233,7 @@ static void update_writeback_rate(struct work_struct *work)
 	 * rate.
 	 */
     if (!timeout && c->request_to_cache_idle) {
-        dc->writeback_rate.rate = 1;
+        atomic_long_set(&dc->writeback_rate.rate, 1);
     }
 
 update_writeback_rate:
