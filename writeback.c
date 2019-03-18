@@ -270,7 +270,7 @@ schedule_delay:
 	smp_mb();
 }
 
-static unsigned writeback_delay(struct cached_dev *dc, unsigned sectors)
+static unsigned int writeback_delay(struct cached_dev *dc, unsigned int sectors)
 {
 	if (test_bit(BCACHE_DEV_DETACHING, &dc->disk.flags) ||
 	    !dc->writeback_percent)
@@ -318,7 +318,7 @@ static void write_dirty_finish(struct closure *cl)
 	/* This is kind of a dumb way of signalling errors. */
 	if (KEY_DIRTY(&w->key)) {
 		int ret;
-		unsigned i;
+		unsigned int i;
 		struct keylist keys;
 
 		bch_keylist_init(&keys);
@@ -434,7 +434,7 @@ static void read_dirty_submit(struct closure *cl)
 
 static void read_dirty(struct cached_dev *dc)
 {
-	unsigned delay = 0;
+	unsigned int delay = 0;
 	struct keybuf_key *next, *keys[MAX_WRITEBACKS_IN_PASS], *w;
 	size_t size;
 	int nk, i;
@@ -554,11 +554,11 @@ err:
 
 /* Scan for dirty data */
 
-void bcache_dev_sectors_dirty_add(struct cache_set *c, unsigned inode,
+void bcache_dev_sectors_dirty_add(struct cache_set *c, unsigned int inode,
 				  uint64_t offset, int nr_sectors)
 {
 	struct bcache_device *d = c->devices[inode];
-	unsigned stripe_offset, stripe, sectors_dirty;
+	unsigned int stripe_offset, stripe, sectors_dirty;
 
 	if (!d)
 		return;
@@ -570,7 +570,7 @@ void bcache_dev_sectors_dirty_add(struct cache_set *c, unsigned inode,
 	stripe_offset = offset & (d->stripe_size - 1);
 
 	while (nr_sectors) {
-		int s = min_t(unsigned, abs(nr_sectors),
+		int s = min_t(unsigned int, abs(nr_sectors),
 			      d->stripe_size - stripe_offset);
 
 		if (nr_sectors < 0)
@@ -604,7 +604,7 @@ static bool dirty_pred(struct keybuf *buf, struct bkey *k)
 static void refill_full_stripes(struct cached_dev *dc)
 {
 	struct keybuf *buf = &dc->writeback_keys;
-	unsigned start_stripe, stripe, next_stripe;
+	unsigned int start_stripe, stripe, next_stripe;
 	bool wrapped = false;
 
 	stripe = offset_to_stripe(&dc->disk, KEY_OFFSET(&buf->last_scanned));
@@ -773,7 +773,7 @@ static int bch_writeback_thread(void *arg)
 		read_dirty(dc);
 
 		if (searched_full_index) {
-			unsigned delay = dc->writeback_delay * HZ;
+			unsigned int delay = dc->writeback_delay * HZ;
 			
             trigger_bucket_gc(c, dc); //writeback线程睡眠之前，触发gc回收bucket
             
@@ -800,7 +800,7 @@ static int bch_writeback_thread(void *arg)
 
 struct sectors_dirty_init {
 	struct btree_op	op;
-	unsigned	inode;
+	unsigned int	inode;
 	size_t		count;
 	struct bkey	start;
 };
