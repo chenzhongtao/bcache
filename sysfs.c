@@ -374,7 +374,7 @@ STORE(__cached_dev)
 		}
 
         if (v == -ENOENT)
-		    spr_err("Can't attach %s: cache set not found", buf);
+		    pr_err("Can't attach %s: cache set not found", buf);
 		return v;
 	}
 
