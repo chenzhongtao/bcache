@@ -1132,11 +1132,11 @@ int bch_cached_dev_attach(struct cached_dev *dc, struct cache_set *c, uint8_t *s
 	list_move(&dc->list, &c->cached_devs); //cached_dev链入cache_set的cached_devs字段中
 	calc_cached_dev_sectors(c);
 
-	smp_wmb();
 	/*
 	 * dc->c must be set before dc->count != 0 - paired with the mb in
 	 * cached_dev_get()
 	 */
+	smp_wmb();
 	refcount_set(&dc->count, 1);
 
 	/* Block writeback thread, but spawn it */
