@@ -1717,6 +1717,7 @@ struct cache_set *bch_cache_set_alloc(struct cache_sb *sb)
 	c->block_bits		= ilog2(sb->block_size);
 	c->nr_uuids		    = bucket_bytes(c) / sizeof(struct uuid_entry);
 	c->devices_max_used = 0;
+	c->gc_after_writeback = BCH_ENABLE_AUTO_GC; //默认开启writeback执行后，自动GC
 	atomic_set(&c->attached_dev_nr, 0);
 	c->btree_pages		= bucket_pages(c);
 	if (c->btree_pages > BTREE_MAX_PAGES)

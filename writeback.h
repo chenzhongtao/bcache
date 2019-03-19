@@ -10,6 +10,7 @@
 
 #define WRITEBACK_RATE_UPDATE_SECS_MAX		60
 #define WRITEBACK_RATE_UPDATE_SECS_DEFAULT	5
+#define BCH_AUTO_GC_DIRTY_THRESHOLD	50
 
 /*
  * 14 (16384ths) is chosen here as something that each backing device

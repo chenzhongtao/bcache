@@ -17,6 +17,15 @@
 #include <linux/sched/clock.h>
 #include <trace/events/bcache.h>
 
+static void update_gc_after_writeback(struct cache_set *c)
+{
+	if (c->gc_after_writeback != (BCH_ENABLE_AUTO_GC) ||
+	    c->gc_stats.in_use < BCH_AUTO_GC_DIRTY_THRESHOLD)
+		return;
+
+	c->gc_after_writeback |= BCH_DO_AUTO_GC;
+}
+
 /* Rate limiting */
 
 static uint64_t __calc_target_rate(struct cached_dev *dc)
@@ -243,6 +252,7 @@ update_writeback_rate:
 	 * __update_writeback_rate() should always be called here.
 	 */
     __update_writeback_rate(dc);
+	update_gc_after_writeback(c);
 
 schedule_delay:
     c->request_to_cache_idle = timeout ? 1 : 0;
@@ -764,7 +774,23 @@ static int bch_writeback_thread(void *arg)
              }
 
             //回写完成，触发gc回收未使用bucket
-			trigger_bucket_gc(c, dc);
+            //trigger_bucket_gc(c, dc);
+			/*
+			 * When dirty data rate is high (e.g. 50%+), there might
+			 * be heavy buckets fragmentation after writeback
+			 * finished, which hurts following write performance.
+			 * If users really care about write performance they
+			 * may set BCH_ENABLE_AUTO_GC via sysfs, then when
+			 * BCH_DO_AUTO_GC is set, garbage collection thread
+			 * will be wake up here. After moving gc, the shrunk
+			 * btree and discarded free buckets SSD space may be
+			 * helpful for following write requests.
+			 */
+			if (c->gc_after_writeback ==
+			    (BCH_ENABLE_AUTO_GC|BCH_DO_AUTO_GC)) {
+				c->gc_after_writeback &= ~BCH_DO_AUTO_GC;
+				force_wake_up_gc(c);
+			}
 		}
 
 		up_write(&dc->writeback_lock);
@@ -775,7 +801,12 @@ static int bch_writeback_thread(void *arg)
 		if (searched_full_index) {
 			unsigned int delay = dc->writeback_delay * HZ;
 			
-            trigger_bucket_gc(c, dc); //writeback线程睡眠之前，触发gc回收bucket
+            //trigger_bucket_gc(c, dc); //writeback线程睡眠之前，触发gc回收bucket
+            if (c->gc_after_writeback ==
+			    (BCH_ENABLE_AUTO_GC|BCH_DO_AUTO_GC)) {
+				c->gc_after_writeback &= ~BCH_DO_AUTO_GC;
+				force_wake_up_gc(c);
+			}
             
 			while (delay &&
 			       !kthread_should_stop() &&
