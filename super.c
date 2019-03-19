@@ -1149,10 +1149,11 @@ int bch_cached_dev_attach(struct cached_dev *dc, struct cache_set *c, uint8_t *s
 	}
 
 	if (BDEV_STATE(&dc->sb) == BDEV_STATE_DIRTY) {
-		bch_sectors_dirty_init(&dc->disk);  //计算dirty扇区的数量
 		atomic_set(&dc->has_dirty, 1);
 		bch_writeback_queue(dc);  //唤醒writeback内核线程
 	}
+	
+	bch_sectors_dirty_init(&dc->disk);	//计算dirty扇区的数量
 
 	bch_cached_dev_run(dc);
 	bcache_device_link(&dc->disk, c, "bdev");
