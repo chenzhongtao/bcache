@@ -698,6 +698,7 @@ static bool refill_dirty(struct cached_dev *dc)
 	return bkey_cmp(&buf->last_scanned, &start_pos) >= 0;
 }
 
+/***
 static void trigger_bucket_gc(struct cache_set *c, struct cached_dev *dc)
 {
     uint64_t now = local_clock();
@@ -718,6 +719,7 @@ trigger:
     c->gc_stats.last_trigger_gc_time = now;
 	wake_up_gc(c);
 }
+***/
 
 static int bch_writeback_thread(void *arg)
 {
