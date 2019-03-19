@@ -2395,3 +2395,7 @@ err:
 
 module_exit(bcache_exit);
 module_init(bcache_init);
+
+MODULE_DESCRIPTION("Bcache: a Linux block layer cache");
+MODULE_AUTHOR("Kent Overstreet <kent.overstreet@xxxxxxxxx>");
+MODULE_LICENSE("GPL");
