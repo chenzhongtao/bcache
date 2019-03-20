@@ -730,8 +730,8 @@ SHOW(__bch_cache_set)
 	sysfs_print(cutoff_writeback_sync, bch_cutoff_writeback_sync);
 
 	sysfs_print(active_journal_entries,	fifo_used(&c->journal.pin));
-	sysfs_strtoul_bool(verify,		c->verify);
-	sysfs_strtoul_bool(key_merging_disabled, c->key_merging_disabled);
+	sysfs_printf(verify,			"%i", c->verify);
+	sysfs_printf(key_merging_disabled,	"%i", c->key_merging_disabled);
 	sysfs_printf(expensive_debug_checks,
 		     "%i", c->expensive_debug_checks);
 	sysfs_printf(gc_always_rewrite,		"%i", c->gc_always_rewrite);
@@ -836,8 +836,8 @@ STORE(__bch_cache_set)
 	}
 
 	sysfs_strtoul(journal_delay_ms,		c->journal_delay_ms);
-	sysfs_strtoul(verify,			c->verify);
-	sysfs_strtoul(key_merging_disabled,	c->key_merging_disabled);
+	sysfs_strtoul_bool(verify,		c->verify);
+	sysfs_strtoul_bool(key_merging_disabled, c->key_merging_disabled);
 	sysfs_strtoul(expensive_debug_checks,	c->expensive_debug_checks);
 	sysfs_strtoul_bool(gc_always_rewrite,	c->gc_always_rewrite);
 	sysfs_strtoul_bool(btree_shrinker_disabled, c->shrinker_disabled);
