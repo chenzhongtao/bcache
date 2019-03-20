@@ -718,10 +718,12 @@ SHOW(__bch_cache_set)
 
 	sysfs_hprint(congested,
 		     ((uint64_t) bch_get_congested(c)) << 9);
-	sysfs_print(congested_read_threshold_us,
-		    c->congested_read_threshold_us);
-	sysfs_print(congested_write_threshold_us,
-		    c->congested_write_threshold_us);
+	sysfs_strtoul_clamp(congested_read_threshold_us,
+			    c->congested_read_threshold_us,
+			    0, UINT_MAX);
+	sysfs_strtoul_clamp(congested_write_threshold_us,
+			    c->congested_write_threshold_us,
+			    0, UINT_MAX);
     sysfs_print(gc_sleep_ms, c->gc_sleep_time);
 
 	sysfs_print(cutoff_writeback, bch_cutoff_writeback);
