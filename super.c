@@ -2355,27 +2355,8 @@ static void bcache_exit(void)
 /* Check and fixup module parameters */
 static void check_module_parameters(void)
 {
-	if (bch_cutoff_writeback_sync == 0)
-		bch_cutoff_writeback_sync = CUTOFF_WRITEBACK_SYNC;
-	else if (bch_cutoff_writeback_sync > CUTOFF_WRITEBACK_SYNC_MAX) {
-		pr_warn("set bch_cutoff_writeback_sync (%u) to max value %u",
-			bch_cutoff_writeback_sync, CUTOFF_WRITEBACK_SYNC_MAX);
-		bch_cutoff_writeback_sync = CUTOFF_WRITEBACK_SYNC_MAX;
-	}
-
-	if (bch_cutoff_writeback == 0)
-		bch_cutoff_writeback = CUTOFF_WRITEBACK;
-	else if (bch_cutoff_writeback > CUTOFF_WRITEBACK_MAX) {
-		pr_warn("set bch_cutoff_writeback (%u) to max value %u",
-			bch_cutoff_writeback, CUTOFF_WRITEBACK_MAX);
-		bch_cutoff_writeback = CUTOFF_WRITEBACK_MAX;
-	}
-
-	if (bch_cutoff_writeback > bch_cutoff_writeback_sync) {
-		pr_warn("set bch_cutoff_writeback (%u) to %u",
-			bch_cutoff_writeback, bch_cutoff_writeback_sync);
-		bch_cutoff_writeback = bch_cutoff_writeback_sync;
-	}
+	bch_cutoff_writeback = CUTOFF_WRITEBACK;
+    bch_cutoff_writeback_sync = CUTOFF_WRITEBACK_SYNC;
 }
 
 static int __init bcache_init(void)
@@ -2426,12 +2407,6 @@ err:
 + */
 module_exit(bcache_exit);
 module_init(bcache_init);
-
-module_param(bch_cutoff_writeback, uint, 0);
-MODULE_PARM_DESC(bch_cutoff_writeback, "threshold to cutoff writeback");
-
-module_param(bch_cutoff_writeback_sync, uint, 0);
-MODULE_PARM_DESC(bch_cutoff_writeback_sync, "hard threshold to cutoff writeback");
 
 MODULE_DESCRIPTION("Bcache: a Linux block layer cache");
 MODULE_AUTHOR("Kent Overstreet <kent.overstreet@xxxxxxxxx>");
