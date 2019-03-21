@@ -489,7 +489,7 @@ struct gc_stat {
 	size_t			nkeys;
 	uint64_t		data;	/* sectors */
 	unsigned int	in_use; /* percent */
-	uint64_t        last_trigger_gc_time;
+	//uint64_t        last_trigger_gc_time;
 };
 
 /*
