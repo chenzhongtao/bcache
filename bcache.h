@@ -246,6 +246,7 @@ struct keybuf {
 	DECLARE_ARRAY_ALLOCATOR(struct keybuf_key, freelist, KEYBUF_NR);
 };
 
+// /sys/block/bcache0
 struct bcache_device {
 	struct closure		cl;
 
@@ -255,7 +256,7 @@ struct bcache_device {
 	unsigned int		id;
 #define BCACHEDEVNAME_SIZE	12
 	char			name[BCACHEDEVNAME_SIZE];
-
+    // disk->disk_name = bcache%i
 	struct gendisk		*disk;
 
 	unsigned long		flags;

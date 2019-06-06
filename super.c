@@ -704,8 +704,8 @@ static void bcache_device_link(struct bcache_device *d, struct cache_set *c,
 	snprintf(d->name, BCACHEDEVNAME_SIZE,
 		 "%s%u", name, d->id);
 
-	WARN(sysfs_create_link(&d->kobj, &c->kobj, "cache") ||
-	     sysfs_create_link(&c->kobj, &d->kobj, d->name),
+	WARN(sysfs_create_link(&d->kobj, &c->kobj, "cache") ||  // /sys/block/bcache0/bcache/cache
+	     sysfs_create_link(&c->kobj, &d->kobj, d->name),    // /sys/fs/bcache/41d78b9d-aaac-4eb3-ac48-7b027115e7de/bdev0
 	     "Couldn't create device <-> cache set symlinks");
 
 	clear_bit(BCACHE_DEV_UNLINK_DONE, &d->flags);
