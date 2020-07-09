@@ -460,7 +460,7 @@ static void read_dirty(struct cached_dev *dc)
 				    PTR_CACHE(dc->disk.c, &w->key, 0)->bdev); //设置bio的目标缓存设备
 			io->bio.bi_end_io	= read_dirty_endio;  //bio完成后回调
 
-			if (bio_alloc_pages(&io->bio, GFP_KERNEL))
+			if (bch_bio_alloc_pages(&io->bio, GFP_KERNEL))
 				goto err_free;
 
 			trace_bcache_writeback(&w->key);
@@ -613,7 +613,7 @@ next:
 
 /*
  * Returns true if we scanned the entire disk
- */ //寻找b+树中的脏节点，填充到cached_dev中的writeback_keys中
+ */ //寻找b+树种的脏节点，填充到cached_dev中的writeback_keys中
 static bool refill_dirty(struct cached_dev *dc)
 {
 	struct keybuf *buf = &dc->writeback_keys;
@@ -631,7 +631,7 @@ static bool refill_dirty(struct cached_dev *dc)
 		buf->last_scanned = start;
 
 	if (dc->partial_stripes_expensive) {
-		refill_full_stripes(dc); //用stripe来管理dirty区域，一个 stripe的默认扇区数为dc->disk.stripe_size = q->limits.io_opt>> 9
+		refill_full_stripes(dc);
 		if (array_freelist_empty(&buf->freelist))
 			return false;
 	}

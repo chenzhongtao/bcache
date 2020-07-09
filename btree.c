@@ -395,7 +395,7 @@ static void do_btree_node_write(struct btree *b)
 	i->csum		= btree_csum_set(b, i);
 
 	BUG_ON(b->bio);
-	b->bio = bch_bbio_alloc(b->c); //分配一个对cache设备的bio
+	b->bio = bch_bbio_alloc(b->c);
 
 	b->bio->bi_end_io	= btree_node_write_endio;
 	b->bio->bi_private	= cl;
@@ -422,7 +422,7 @@ static void do_btree_node_write(struct btree *b)
 	SET_PTR_OFFSET(&k.key, 0, PTR_OFFSET(&k.key, 0) +
 		       bset_sector_offset(&b->keys, i));
 
-	if (!bio_alloc_pages(b->bio, __GFP_NOWARN|GFP_NOWAIT)) {
+	if (!bch_bio_alloc_pages(b->bio, __GFP_NOWARN|GFP_NOWAIT)) {
 		int j;
 		struct bio_vec *bv;
 		void *base = (void *) ((unsigned long) i & ~(PAGE_SIZE - 1));
@@ -528,9 +528,9 @@ static void bch_btree_leaf_dirty(struct btree *b, atomic_t *journal_ref)
 	BUG_ON(!i->keys);
 
 	if (!btree_node_dirty(b))
-		schedule_delayed_work(&b->work, 30 * HZ); //如果该叶子节点非dirty，则延迟调用b->work
+		schedule_delayed_work(&b->work, 30 * HZ);
 
-	set_btree_node_dirty(b); //标记叶子节点为dirty
+	set_btree_node_dirty(b);
 
 	if (journal_ref) {
 		if (w->journal &&
@@ -545,7 +545,7 @@ static void bch_btree_leaf_dirty(struct btree *b, atomic_t *journal_ref)
 		}
 	}
 
-	/* Force write if set is too big */ //bset的大小已接近PAGE_SIZE
+	/* Force write if set is too big */
 	if (set_bytes(i) > PAGE_SIZE - 48 &&
 	    !current->bio_list)
 		bch_btree_node_write(b, NULL);
@@ -1020,13 +1020,6 @@ retry:
 		BUG_ON(b->level != level);
 	}
 
-	if (btree_node_io_error(b)) {
- 		rw_unlock(write, b);
- 		return ERR_PTR(-EIO);
- 	}
-  
- 	BUG_ON(!b->written);
-
 	b->parent = parent;
 	b->accessed = 1;
 
@@ -1037,6 +1030,13 @@ retry:
 
 	for (; i <= b->keys.nsets; i++)
 		prefetch(b->keys.set[i].data);
+
+	if (btree_node_io_error(b)) {
+		rw_unlock(write, b);
+		return ERR_PTR(-EIO);
+	}
+
+	BUG_ON(!b->written);
 
 	return b;
 }
@@ -1851,7 +1851,7 @@ static bool gc_should_run(struct cache_set *c)
 	bool ret = false;
 
 	for_each_cache(ca, c, i)
-		if (ca->invalidate_needs_gc) 
+		if (ca->invalidate_needs_gc)
 			return true;
 
 	if (atomic_read(&c->sectors_to_gc) < 0) {

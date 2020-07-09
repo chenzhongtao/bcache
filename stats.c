@@ -147,38 +147,38 @@ static void scale_stats(struct cache_stats *stats, unsigned long rescale_at)
 	}
 }
 
-static void scale_accounting(unsigned long data)
+static void scale_accounting(struct timer_list *t)
 {
-	struct cache_accounting *acc = (struct cache_accounting *) data;
+        struct cache_accounting *acc = from_timer(acc, t, timer);
 
-#define move_stat(name) do {						\
-	unsigned t = atomic_xchg(&acc->collector.name, 0);		\
-	t <<= 16;							\
-	acc->five_minute.name += t;					\
-	acc->hour.name += t;						\
-	acc->day.name += t;						\
-	acc->total.name += t;						\
+#define move_stat(name) do {                                            \
+        unsigned t = atomic_xchg(&acc->collector.name, 0);              \
+        t <<= 16;                                                       \
+        acc->five_minute.name += t;                                     \
+        acc->hour.name += t;                                            \
+        acc->day.name += t;                                             \
+        acc->total.name += t;                                           \
 } while (0)
 
-	move_stat(cache_hits);
-	move_stat(cache_misses);
-	move_stat(cache_bypass_hits);
-	move_stat(cache_bypass_misses);
-	move_stat(cache_readaheads);
-	move_stat(cache_miss_collisions);
-	move_stat(sectors_bypassed);
+        move_stat(cache_hits);
+        move_stat(cache_misses);
+        move_stat(cache_bypass_hits);
+        move_stat(cache_bypass_misses);
+        move_stat(cache_readaheads);
+        move_stat(cache_miss_collisions);
+        move_stat(sectors_bypassed);
 
-	scale_stats(&acc->total, 0);
-	scale_stats(&acc->day, DAY_RESCALE);
-	scale_stats(&acc->hour, HOUR_RESCALE);
-	scale_stats(&acc->five_minute, FIVE_MINUTE_RESCALE);
+        scale_stats(&acc->total, 0);
+        scale_stats(&acc->day, DAY_RESCALE);
+        scale_stats(&acc->hour, HOUR_RESCALE);
+        scale_stats(&acc->five_minute, FIVE_MINUTE_RESCALE);
 
-	acc->timer.expires += accounting_delay;
+        acc->timer.expires += accounting_delay;
 
-	if (!atomic_read(&acc->closing))
-		add_timer(&acc->timer);
-	else
-		closure_return(&acc->cl);
+        if (!atomic_read(&acc->closing))
+                add_timer(&acc->timer);
+        else
+                closure_return(&acc->cl);
 }
 
 static void mark_cache_stats(struct cache_stat_collector *stats,
@@ -234,9 +234,7 @@ void bch_cache_accounting_init(struct cache_accounting *acc,
 	kobject_init(&acc->day.kobj,		&bch_stats_ktype);
 
 	closure_init(&acc->cl, parent);
-	init_timer(&acc->timer);
+	timer_setup(&acc->timer, scale_accounting, 0);
 	acc->timer.expires	= jiffies + accounting_delay;
-	acc->timer.data		= (unsigned long) acc;
-	acc->timer.function	= scale_accounting;
 	add_timer(&acc->timer);
 }

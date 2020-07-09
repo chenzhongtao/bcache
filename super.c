@@ -199,7 +199,7 @@ static const char *read_super(struct cache_sb *sb, struct block_device *bdev,
 		goto err;
 	}
 
-	sb->last_mount = (u32)ktime_get_real_seconds();
+	sb->last_mount = get_seconds();
 	err = NULL;
 
 	get_page(bh->b_page);
@@ -718,7 +718,7 @@ static void bcache_device_detach(struct bcache_device *d)
 
 		SET_UUID_FLASH_ONLY(u, 0);
 		memcpy(u->uuid, invalid_uuid, 16);
-		u->invalidated = cpu_to_le32((u32)ktime_get_real_seconds());
+		u->invalidated = cpu_to_le32(get_seconds());
 		bch_uuid_write(d->c);
 	}
 
@@ -770,8 +770,8 @@ static void bcache_device_free(struct bcache_device *d)
 		put_disk(d->disk);
 	}
 
-	if (d->bio_split)
-		bioset_free(d->bio_split);
+
+	bioset_exit(d->bio_split);
 	kvfree(d->full_dirty_stripes);
 	kvfree(d->stripe_sectors_dirty);
 
@@ -813,13 +813,13 @@ static int bcache_device_init(struct bcache_device *d, unsigned block_size,
 	if (idx < 0)
 		return idx;
     //分配bio的mempool，并创建bioset内核线程，避免generic_make_request中等待bio_split发生死锁
-	if (!(d->bio_split = bioset_create(4, offsetof(struct bbio, bio),
-					   BIOSET_NEED_BVECS |
-					   BIOSET_NEED_RESCUER)) ||
-	    !(d->disk = alloc_disk(BCACHE_MINORS))) { //分配gendisk对象，代表bcache设备
-		ida_simple_remove(&bcache_device_idx, idx);
-		return -ENOMEM;
-	}
+        if (bioset_init(d->bio_split, 4, offsetof(struct bbio, bio),
+                        BIOSET_NEED_BVECS|BIOSET_NEED_RESCUER) ||
+            !(d->disk = alloc_disk(BCACHE_MINORS))) { //分配gendisk对象，代表bcache设备
+                ida_simple_remove(&bcache_device_idx, idx);
+                return -ENOMEM;
+        }
+
     //初始化gendisk对象
 	set_capacity(d->disk, sectors);
 	snprintf(d->disk->disk_name, DISK_NAME_LEN, "bcache%i", idx);  //后端设备命名，bcache0
@@ -1045,7 +1045,7 @@ void bch_cached_dev_detach(struct cached_dev *dc)
 
 int bch_cached_dev_attach(struct cached_dev *dc, struct cache_set *c, uint8_t *set_uuid)
 {
-	uint32_t rtime = cpu_to_le32((u32)ktime_get_real_seconds());
+	uint32_t rtime = cpu_to_le32(get_seconds());
 	struct uuid_entry *u;
 	struct cached_dev *exist_dc, *t;
 
@@ -1086,7 +1086,7 @@ int bch_cached_dev_attach(struct cached_dev *dc, struct cache_set *c, uint8_t *s
 	    (BDEV_STATE(&dc->sb) == BDEV_STATE_STALE ||
 	     BDEV_STATE(&dc->sb) == BDEV_STATE_NONE)) {
 		memcpy(u->uuid, invalid_uuid, 16);
-		u->invalidated = cpu_to_le32((u32)ktime_get_real_seconds());
+		u->invalidated = cpu_to_le32(get_seconds());
 		u = NULL;
 	}
 
@@ -1298,7 +1298,6 @@ static void register_bdev(struct cache_sb *sb, struct page *sb_page,
 	pr_info("registered backing device %s", dc->backing_dev_name);
 
 	list_add(&dc->list, &uncached_devices);
-	/* attch to a matched cache set if it exists */
 	list_for_each_entry(c, &bch_cache_sets, list)
 		bch_cached_dev_attach(dc, c, NULL);
 
@@ -1404,7 +1403,7 @@ int bch_flash_dev_create(struct cache_set *c, uint64_t size)
 
 	get_random_bytes(u->uuid, 16);
 	memset(u->label, 0, 32);
-	u->first_reg = u->last_reg = cpu_to_le32((u32)ktime_get_real_seconds());
+	u->first_reg = u->last_reg = cpu_to_le32(get_seconds());
 
 	SET_UUID_FLASH_ONLY(u, 1);
 	u->sectors = size >> 9;
@@ -1513,7 +1512,7 @@ static void cache_set_free(struct closure *cl)
 	if (c->moving_gc_wq)
 		destroy_workqueue(c->moving_gc_wq);
 	if (c->bio_split)
-		bioset_free(c->bio_split);
+		bioset_exit(c->bio_split);
 	if (c->fill_iter)
 		mempool_destroy(c->fill_iter);
 	if (c->bio_meta)
@@ -1746,9 +1745,8 @@ struct cache_set *bch_cache_set_alloc(struct cache_sb *sb)
 				sizeof(struct bbio) + sizeof(struct bio_vec) *
 				bucket_pages(c))) ||
 	    !(c->fill_iter = mempool_create_kmalloc_pool(1, iter_size)) ||
-	    !(c->bio_split = bioset_create(4, offsetof(struct bbio, bio),
-					   BIOSET_NEED_BVECS |
-					   BIOSET_NEED_RESCUER)) ||
+	    !bioset_init(c->bio_split, 4, offsetof(struct bbio, bio),
+                        BIOSET_NEED_BVECS|BIOSET_NEED_RESCUER)||
 	    !(c->uuids = alloc_bucket_pages(GFP_KERNEL, c)) ||
 	    !(c->moving_gc_wq = alloc_workqueue("bcache_gc",
 						WQ_MEM_RECLAIM, 0)) ||
@@ -1791,7 +1789,7 @@ static void run_cache_set(struct cache_set *c)
 		struct jset *j;
 
 		err = "cannot allocate memory for journal";
-		if (bch_journal_read(c, &journal)) //从cache设备中读出持久化的journal
+		if (bch_journal_read(c, &journal))
 			goto err;
 
 		pr_debug("btree_journal_read() done");
@@ -1834,7 +1832,7 @@ static void run_cache_set(struct cache_set *c)
 		if (bch_btree_check(c))
 			goto err;
 
-		bch_journal_mark(c, &journal); //确定哪些journal需要重新提交
+		bch_journal_mark(c, &journal);
 		bch_initial_gc_finish(c);
 		pr_debug("btree_check() done");
 
@@ -1843,10 +1841,10 @@ static void run_cache_set(struct cache_set *c)
 		 * btree_gc_finish() will give spurious errors about last_gc >
 		 * gc_gen - this is a hack but oh well.
 		 */
-		bch_journal_next(&c->journal); //journal采用了双缓冲区，该函数交换两个缓冲区
+		bch_journal_next(&c->journal);
 
 		err = "error starting allocator thread";
-		for_each_cache(ca, c, i)  //每个缓存设备启动一个bch_allocator_thread线程，用于bucket的分配
+		for_each_cache(ca, c, i)
 			if (bch_cache_allocator_start(ca))
 				goto err;
 
@@ -1863,7 +1861,7 @@ static void run_cache_set(struct cache_set *c)
 		if (j->version < BCACHE_JSET_VERSION_UUID)
 			__uuid_write(c);
 
-		bch_journal_replay(c, &journal); //replay因崩溃或突然关机的持久化记录的bset
+		bch_journal_replay(c, &journal);
 	} else {
 		pr_notice("invalidating existing data");
 
@@ -1922,7 +1920,7 @@ static void run_cache_set(struct cache_set *c)
 		goto err;
 
 	closure_sync(&cl);
-	c->sb.last_mount = (u32)ktime_get_real_seconds();
+	c->sb.last_mount = get_seconds();
 	bcache_write_super(c);
 
 	list_for_each_entry_safe(dc, t, &uncached_devices, list)
@@ -2191,13 +2189,9 @@ static ssize_t register_bcache(struct kobject *k, struct kobj_attribute *attr,
 	if (!try_module_get(THIS_MODULE))
 		return -EBUSY;
     //参数buffer传进来是块设备文件路径：/dev/sdc
-    path = kstrndup(buffer, size, GFP_KERNEL);
- 	if (!path)
- 		goto err;
- 
- 	sb = kmalloc(sizeof(struct cache_sb), GFP_KERNEL);
- 	if (!sb)
- 		goto err;
+	if (!(path = kstrndup(buffer, size, GFP_KERNEL)) ||
+	    !(sb = kmalloc(sizeof(struct cache_sb), GFP_KERNEL)))
+		goto err;
 
 	err = "failed to open device";
 	bdev = blkdev_get_by_path(strim(path),    //根据路径名字找到block_device
@@ -2357,20 +2351,12 @@ static int __init bcache_init(void)
 		return bcache_major;
 	}
 
-	bcache_wq = alloc_workqueue("bcache", WQ_MEM_RECLAIM, 0);
- 	if (!bcache_wq)
- 		goto err;
-   
- 	bcache_kobj = kobject_create_and_add("bcache", fs_kobj);
- 	if (!bcache_kobj)
- 		goto err;
-  
- 	if (bch_request_init() ||
+	if (!(bcache_wq = alloc_workqueue("bcache", WQ_MEM_RECLAIM, 0)) ||
+	    !(bcache_kobj = kobject_create_and_add("bcache", fs_kobj)) ||
+	    bch_request_init() ||
+	    bch_debug_init(bcache_kobj) || closure_debug_init() ||
 	    sysfs_create_files(bcache_kobj, files))
 		goto err;
-
-    bch_debug_init(bcache_kobj);
- 	closure_debug_init();
 
 	return 0;
 err:
